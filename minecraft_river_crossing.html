@@ -1,0 +1,1592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minecraft Minecart River Crossing: Sequential Constraint Planner</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts for Pixel & Clean typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            pixel: ['"Press Start 2P"', 'cursive'],
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            mc: {
+              dirt: '#573d26',
+              grass: '#5b8731',
+              stone: '#4a4a4a',
+              wood: '#855e42',
+              rail: '#3a3331',
+              accent: '#ffaa00',
+              redstone: '#e63946',
+              gold: '#ffd700',
+              crafting: '#332314',
+            }
+          },
+          boxShadow: {
+            'pixel': '4px 4px 0px 0px rgba(0,0,0,0.6)',
+            'pixel-sm': '2px 2px 0px 0px rgba(0,0,0,0.6)',
+            'pixel-lg': '6px 6px 0px 0px rgba(0,0,0,0.7)',
+            'glow-gold': '0 0 15px rgba(255, 215, 0, 0.6)',
+            'glow-green': '0 0 15px rgba(91, 135, 49, 0.6)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #121820;
+      color: #e2e8f0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Custom Minecraft-style tiled pixel backgrounds */
+    .bg-grass-pattern {
+      background-color: #4c7327;
+      background-image: radial-gradient(#5c8832 20%, transparent 20%),
+                        radial-gradient(#3a581d 20%, transparent 20%);
+      background-size: 16px 16px;
+      background-position: 0 0, 8px 8px;
+    }
+
+    .bg-crafting-pattern {
+      background-color: #3d2b1f;
+      background-image: linear-gradient(45deg, #2b1e15 25%, transparent 25%, transparent 75%, #2b1e15 75%, #2b1e15),
+                        linear-gradient(45deg, #2b1e15 25%, transparent 25%, transparent 75%, #2b1e15 75%, #2b1e15);
+      background-size: 20px 20px;
+      background-position: 0 0, 10px 10px;
+    }
+
+    .bg-river-pattern {
+      background-color: #1a4d7c;
+      background-image: radial-gradient(#23629b 15%, transparent 16%),
+                        radial-gradient(#153c61 15%, transparent 16%);
+      background-size: 24px 24px;
+      background-position: 0 0, 12px 12px;
+    }
+
+    /* Minecraft Border effect */
+    .mc-border {
+      border: 4px solid #1e1b18;
+      box-shadow: inset -4px -4px 0px 0px #2a2622, inset 4px 4px 0px 0px #4e4842;
+    }
+
+    .mc-button {
+      border: 3px solid #000;
+      box-shadow: inset -3px -3px 0px 0px #383838, inset 3px 3px 0px 0px #8b8b8b;
+      background-color: #6b6b6b;
+      transition: all 0.1s ease;
+    }
+
+    .mc-button:hover:not(:disabled) {
+      background-color: #7b7b7b;
+      transform: translateY(-2px);
+    }
+
+    .mc-button:active:not(:disabled) {
+      box-shadow: inset 3px 3px 0px 0px #383838, inset -3px -3px 0px 0px #8b8b8b;
+      transform: translateY(2px);
+    }
+
+    .mc-button-primary {
+      box-shadow: inset -3px -3px 0px 0px #2a5a1b, inset 3px 3px 0px 0px #83c648;
+      background-color: #4c8a27;
+    }
+
+    .mc-button-primary:hover:not(:disabled) {
+      background-color: #59a02e;
+    }
+
+    .mc-button-danger {
+      box-shadow: inset -3px -3px 0px 0px #5c1818, inset 3px 3px 0px 0px #e65252;
+      background-color: #a82828;
+    }
+
+    .mc-button-danger:hover:not(:disabled) {
+      background-color: #bd3131;
+    }
+
+    /* Track line styling */
+    .rail-track {
+      background: repeating-linear-gradient(
+        90deg,
+        #524336,
+        #524336 8px,
+        #211b15 8px,
+        #211b15 16px,
+        #a3a3a3 16px,
+        #a3a3a3 20px,
+        #211b15 20px,
+        #211b15 28px
+      );
+    }
+
+    /* Minecart Transition Smoothness */
+    .minecart-container {
+      transition: left 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95);
+    }
+
+    /* Item Card Bobbing Animation */
+    @keyframes floating {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+      100% { transform: translateY(0px); }
+    }
+
+    .animate-float {
+      animation: floating 2.5s infinite ease-in-out;
+    }
+
+    /* Pulsing Golden Glow */
+    @keyframes enchanted-glow {
+      0% { filter: drop-shadow(0 0 2px #ffd700); }
+      50% { filter: drop-shadow(0 0 10px #ffee55); }
+      100% { filter: drop-shadow(0 0 2px #ffd700); }
+    }
+
+    .enchanted {
+      animation: enchanted-glow 2s infinite ease-in-out;
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1a1a1a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #4a4a4a;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #6a6a6a;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col font-sans antialiased bg-slate-950 text-slate-100">
+
+  <!-- Top Navigation Header -->
+  <header class="w-full bg-slate-900 border-b-4 border-slate-800 px-4 py-3 sticky top-0 z-30 shadow-md">
+    <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-3">
+      
+      <!-- Title & Subtitle -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-amber-600 rounded flex items-center justify-center text-2xl shadow-pixel border-2 border-amber-300">
+          🛒
+        </div>
+        <div>
+          <h1 class="font-pixel text-xs sm:text-sm md:text-base text-amber-400 tracking-wide">
+            MINECRAFT MINECART RIVER CROSSING
+          </h1>
+          <p class="text-xs text-slate-400 font-semibold">Sequential Constraint Planner Puzzle</p>
+        </div>
+      </div>
+
+      <!-- Header Quick Actions & Stats -->
+      <div class="flex items-center gap-2 sm:gap-4 ml-auto">
+        <!-- Move Counter -->
+        <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-2">
+          <span class="text-xs text-slate-400 uppercase font-pixel">Moves:</span>
+          <span id="moveCountBadge" class="font-pixel text-amber-400 text-sm sm:text-base">0</span>
+        </div>
+
+        <!-- AI Advisor Toggle Button -->
+        <button id="aiAdvisorToggleBtn" class="mc-button mc-button-primary px-2.5 py-1.5 text-xs font-pixel text-white flex items-center gap-1">
+          🤖 <span>AI Advisor</span>
+        </button>
+
+        <!-- AI Custom Level Generator Toggle Button -->
+        <button id="aiGeneratorToggleBtn" class="mc-button px-2.5 py-1.5 text-xs font-pixel text-amber-300 flex items-center gap-1">
+          ⚡ <span>AI Generator</span>
+        </button>
+
+        <!-- Mute Audio Toggle -->
+        <button id="soundToggleBtn" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition" title="Toggle Sound Effects">
+          🔊
+        </button>
+
+        <!-- Rules Drawer Toggle -->
+        <button id="toggleDrawerBtn" class="mc-button px-3 py-1.5 text-xs font-pixel text-white flex items-center gap-1.5">
+          📜 <span>Rules & Log</span>
+        </button>
+
+        <!-- Restart Game Button -->
+        <button id="resetGameBtn" class="mc-button mc-button-danger px-3 py-1.5 text-xs font-pixel text-white flex items-center gap-1">
+          🔄 <span>Reset</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Application Body -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 flex flex-col lg:flex-row gap-6">
+
+    <!-- GAME BOARD CONTAINER -->
+    <section class="flex-1 flex flex-col gap-4">
+      
+      <!-- Top Helper / Alert Banner -->
+      <div id="statusBanner" class="bg-slate-900 border-2 border-slate-800 rounded-xl p-3 flex items-center justify-between shadow-lg">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl animate-bounce">💡</span>
+          <div>
+            <p id="statusMessage" class="text-xs sm:text-sm text-slate-200 font-medium">
+              Load items into the Minecart and ride across. Don't leave incompatible items alone!
+            </p>
+            <p class="text-[11px] text-slate-400 mt-0.5">
+              Goal: Safely transport Golden Apple, Mischievous Goblin & Tamed Wolf to Crafting Table side.
+            </p>
+          </div>
+        </div>
+        <button id="quickUndoBtn" disabled class="px-2.5 py-1 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 rounded border border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed">
+          ↩️ Undo
+        </button>
+      </div>
+
+      <!-- Visual Game Field (Start Side | River & Rail | Crafting Side) -->
+      <div class="mc-border rounded-xl bg-slate-900 overflow-hidden flex flex-col relative shadow-pixel-lg">
+        
+        <!-- World Header Labels -->
+        <div class="grid grid-cols-12 bg-slate-950/80 border-b-2 border-slate-800 text-center font-pixel text-[10px] sm:text-xs py-2 px-2 text-slate-400">
+          <div class="col-span-4 text-emerald-400 flex items-center justify-center gap-1">
+            🌱 START BANK
+          </div>
+          <div class="col-span-4 text-cyan-400 flex items-center justify-center gap-1">
+            🌊 RIVER GAP (RAILS)
+          </div>
+          <div class="col-span-4 text-amber-400 flex items-center justify-center gap-1">
+            🛠️ CRAFTING BANK
+          </div>
+        </div>
+
+        <!-- Interactive Terrain Viewport -->
+        <div class="grid grid-cols-12 min-h-[360px] sm:min-h-[420px] relative">
+
+          <!-- 1. START BANK (Left - Grass/Dirt) -->
+          <div class="col-span-4 bg-grass-pattern p-3 sm:p-4 flex flex-col justify-between border-r-4 border-amber-900 relative">
+            
+            <!-- Bank Title Badge -->
+            <div class="self-start bg-emerald-950/90 text-emerald-300 border border-emerald-600/50 px-2.5 py-1 rounded font-pixel text-[10px] shadow-sm flex items-center gap-1.5">
+              <span>Start Side</span>
+              <span id="startCountBadge" class="bg-emerald-800 text-white rounded-full px-1.5 py-0.2 text-[9px]">3 items</span>
+            </div>
+
+            <!-- Player Indicator on Start Bank -->
+            <div id="playerStartIndicator" class="my-2 transition-all duration-300">
+              <div class="bg-slate-900/80 border border-amber-500/50 rounded-lg p-2 flex items-center gap-2 shadow-md">
+                <div class="w-8 h-8 rounded bg-amber-700 flex items-center justify-center text-lg border border-amber-400">
+                  🧑‍🌾
+                </div>
+                <div>
+                  <div class="text-xs font-bold text-amber-300 font-pixel">PLAYER</div>
+                  <div class="text-[10px] text-slate-300">Present at Start</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Items Deck on Start Side -->
+            <div id="startItemsDeck" class="flex flex-col gap-2.5 my-auto py-2">
+              <!-- Item cards dynamically loaded here -->
+            </div>
+
+            <!-- Visual Decorative Footer -->
+            <div class="text-[10px] text-emerald-200/60 font-pixel text-center pt-2 border-t border-emerald-800/40">
+              Grass Plateau
+            </div>
+          </div>
+
+          <!-- 2. RIVER GAP & MINECART TRACK (Center) -->
+          <div class="col-span-4 bg-river-pattern relative flex flex-col justify-between p-2 overflow-hidden">
+            
+            <!-- Animated Water Effects / Rails Overlay -->
+            <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 h-20 rail-track border-y-4 border-slate-900 shadow-lg flex items-center"></div>
+
+            <!-- Rail Supports / Pillars -->
+            <div class="absolute inset-x-0 top-0 bottom-0 flex justify-around pointer-events-none opacity-20">
+              <div class="w-3 bg-amber-950 border-x border-amber-800 h-full"></div>
+              <div class="w-3 bg-amber-950 border-x border-amber-800 h-full"></div>
+            </div>
+
+            <!-- Center Water Hazard Label -->
+            <div class="z-0 text-center my-auto opacity-30 font-pixel text-[10px] text-cyan-200 tracking-widest uppercase pointer-events-none">
+              Deep Ravine
+            </div>
+
+            <!-- MOVING MINECART CONTAINER -->
+            <div id="minecartContainer" class="minecart-container absolute top-1/2 -translate-y-1/2 z-20 w-[46%] left-[4%]">
+              
+              <!-- Minecart Box UI -->
+              <div class="bg-slate-800 border-2 border-slate-300 rounded-lg p-2 shadow-pixel-lg relative flex flex-col gap-1.5">
+                
+                <!-- Cart Header / Capacity Tag -->
+                <div class="flex justify-between items-center border-b border-slate-700 pb-1">
+                  <span class="font-pixel text-[9px] text-amber-400">MINECART</span>
+                  <span id="cartCapacityTag" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-900 text-slate-300">
+                    Cap: 1 item
+                  </span>
+                </div>
+
+                <!-- Player inside Cart Slot -->
+                <div class="bg-slate-900/90 rounded border border-slate-700 p-1.5 flex items-center gap-2">
+                  <div class="w-6 h-6 rounded bg-amber-600 flex items-center justify-center text-sm">
+                    🧑‍🌾
+                  </div>
+                  <span class="text-[10px] font-semibold text-slate-200">Player (Always)</span>
+                </div>
+
+                <!-- Passenger / Cargo Slot -->
+                <div id="minecartCargoSlot" class="min-h-[48px] bg-slate-950/80 border-2 border-dashed border-slate-700 rounded-md p-1.5 flex items-center justify-center">
+                  <span class="text-[10px] text-slate-500 italic">Cargo Slot Empty</span>
+                </div>
+
+                <!-- Action Button inside Cart -->
+                <button id="rideBtn" class="mc-button mc-button-primary w-full py-1.5 px-2 text-[10px] font-pixel text-white rounded flex items-center justify-center gap-1 shadow">
+                  🚀 <span>RIDE ACROSS</span>
+                </button>
+
+              </div>
+            </div>
+
+            <!-- Track Side Labels -->
+            <div class="z-10 flex justify-between text-[9px] text-cyan-200/70 font-mono px-1">
+              <span>◄ West Rail</span>
+              <span>East Rail ►</span>
+            </div>
+          </div>
+
+          <!-- 3. CRAFTING BANK (Right - Crafting/Wood) -->
+          <div class="col-span-4 bg-crafting-pattern p-3 sm:p-4 flex flex-col justify-between border-l-4 border-amber-950 relative">
+            
+            <!-- Bank Title Badge -->
+            <div class="self-start bg-amber-950/90 text-amber-300 border border-amber-600/50 px-2.5 py-1 rounded font-pixel text-[10px] shadow-sm flex items-center gap-1.5">
+              <span>Crafting Side</span>
+              <span id="craftingCountBadge" class="bg-amber-800 text-white rounded-full px-1.5 py-0.2 text-[9px]">0 items</span>
+            </div>
+
+            <!-- Player Indicator on Crafting Bank -->
+            <div id="playerCraftingIndicator" class="my-2 transition-all duration-300 hidden">
+              <div class="bg-slate-900/80 border border-amber-500/50 rounded-lg p-2 flex items-center gap-2 shadow-md">
+                <div class="w-8 h-8 rounded bg-amber-700 flex items-center justify-center text-lg border border-amber-400">
+                  🧑‍🌾
+                </div>
+                <div>
+                  <div class="text-xs font-bold text-amber-300 font-pixel">PLAYER</div>
+                  <div class="text-[10px] text-slate-300">Present at Crafting Side</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Items Deck on Crafting Side -->
+            <div id="craftingItemsDeck" class="flex flex-col gap-2.5 my-auto py-2">
+              <!-- Item cards dynamically loaded here -->
+            </div>
+
+            <!-- Visual Decorative Footer -->
+            <div class="text-[10px] text-amber-200/60 font-pixel text-center pt-2 border-t border-amber-900/50">
+              🛠️ Crafting Station
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Controls Hint Strip at Bottom -->
+        <div class="bg-slate-950 px-4 py-2 border-t border-slate-800 flex flex-wrap justify-between items-center text-xs text-slate-400">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Click any item on your current side to <strong>load</strong> or <strong>unload</strong> into the minecart.</span>
+          </div>
+          <div class="text-[11px] text-slate-500">
+            Current Cart Position: <strong id="cartPosText" class="text-amber-400 font-pixel">START SIDE</strong>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Constraint Rules Summary Ribbon -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        
+        <!-- Rule 1 -->
+        <div class="bg-slate-900 border border-slate-800 p-3 rounded-lg flex items-start gap-2.5">
+          <div class="p-1.5 bg-slate-800 text-amber-400 rounded text-base border border-slate-700">🛒</div>
+          <div>
+            <h4 class="text-xs font-bold text-slate-200 uppercase font-pixel">Capacity Constraint</h4>
+            <p class="text-[11px] text-slate-400 mt-0.5">Player + <strong>MAX 1 Item</strong> per trip across the rail line.</p>
+          </div>
+        </div>
+
+        <!-- Rule 2 -->
+        <div class="bg-slate-900 border border-slate-800 p-3 rounded-lg flex items-start gap-2.5">
+          <div class="p-1.5 bg-slate-800 text-red-400 rounded text-base border border-slate-700">🍎</div>
+          <div>
+            <h4 class="text-xs font-bold text-slate-200 uppercase font-pixel">Goblin Hazard</h4>
+            <p class="text-[11px] text-slate-400 mt-0.5">Goblin eats <strong>Golden Apple</strong> if left alone without Player.</p>
+          </div>
+        </div>
+
+        <!-- Rule 3 -->
+        <div class="bg-slate-900 border border-slate-800 p-3 rounded-lg flex items-start gap-2.5">
+          <div class="p-1.5 bg-slate-800 text-emerald-400 rounded text-base border border-slate-700">🐺</div>
+          <div>
+            <h4 class="text-xs font-bold text-slate-200 uppercase font-pixel">Wolf Conflict</h4>
+            <p class="text-[11px] text-slate-400 mt-0.5">Tamed Wolf chases <strong>Goblin away</strong> if left alone without Player.</p>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- EDUCATIONAL LOGIC GUIDE & PLANNER TRACKER SIDE DRAWER -->
+    <aside id="plannerDrawer" class="w-full lg:w-80 bg-slate-900 border-2 border-slate-800 rounded-xl p-4 flex flex-col gap-4 shadow-xl">
+      
+      <!-- Drawer Title Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-lg">📋</span>
+          <h2 class="font-pixel text-xs text-amber-400">PLANNER TRACKER</h2>
+        </div>
+        <span class="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400 border border-slate-700 font-mono">
+          Sequential Logic
+        </span>
+      </div>
+
+      <!-- Logic Constraint Checklist -->
+      <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+        <h3 class="text-xs font-bold text-slate-300 font-pixel mb-2 text-amber-300 flex items-center gap-1">
+          <span>🧠</span> System Constraints
+        </h3>
+        <ul class="text-[11px] text-slate-300 space-y-1.5 pl-1">
+          <li class="flex items-center gap-2">
+            <span class="text-emerald-400">✓</span>
+            <span>Wolf + Apple = <strong>SAFE</strong> together!</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="text-red-400">✕</span>
+            <span>Goblin + Apple = <strong>FORBIDDEN</strong> alone</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="text-red-400">✕</span>
+            <span>Wolf + Goblin = <strong>FORBIDDEN</strong> alone</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Move Log History List -->
+      <div class="flex-1 flex flex-col min-h-[220px]">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-xs font-bold text-slate-300 font-pixel">MOVE LOG</h3>
+          <span id="logCountLabel" class="text-[10px] text-slate-500">0 steps recorded</span>
+        </div>
+
+        <div id="moveLogList" class="flex-1 bg-slate-950 rounded-lg border border-slate-800 p-2.5 overflow-y-auto max-h-[300px] flex flex-col gap-2 font-mono text-xs">
+          <!-- Log entries appended dynamically -->
+          <div class="text-slate-500 text-[11px] italic text-center my-auto py-4">
+            No trips made yet. Load an item into the minecart to begin!
+          </div>
+        </div>
+      </div>
+
+      <!-- Hint & Optimal Path Section -->
+      <div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/60 text-xs">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-bold text-amber-300">Optimal Solution:</span>
+          <span id="optimalMovesBadge" class="font-pixel text-[10px] text-emerald-400">7 Trips</span>
+        </div>
+        <p class="text-[11px] text-slate-400">
+          Can you figure out which item must cross twice to act as a buffer?
+        </p>
+        <div class="flex justify-between items-center mt-2">
+          <button id="showHintBtn" class="text-[10px] text-amber-400 hover:text-amber-300 underline font-semibold">
+            💡 Need a hint?
+          </button>
+          <button id="askAiQuickBtn" class="text-[10px] bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-2 py-1 rounded border border-amber-500/40 font-bold flex items-center gap-1">
+            🤖 Ask AI Strategy
+          </button>
+        </div>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- MODAL: GAME OVER / RULE VIOLATION -->
+  <div id="gameOverModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="mc-border bg-slate-900 max-w-md w-full rounded-xl p-6 shadow-pixel-lg border-2 border-red-500 flex flex-col items-center text-center relative">
+      
+      <div class="w-16 h-16 rounded-2xl bg-red-950 border-2 border-red-500 flex items-center justify-center text-3xl mb-3 shadow-pixel">
+        💥
+      </div>
+
+      <h3 class="font-pixel text-sm sm:text-base text-red-400 tracking-wide mb-2">
+        RULE VIOLATION!
+      </h3>
+
+      <div id="failReasonBox" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-300 mb-4 leading-relaxed">
+        <!-- Failure reason populated dynamically -->
+      </div>
+
+      <div class="flex gap-2 w-full">
+        <button id="modalUndoBtn" class="mc-button flex-1 py-2 text-xs font-pixel text-amber-300">
+          ↩️ UNDO MOVE
+        </button>
+        <button id="modalRestartBtn" class="mc-button mc-button-danger flex-1 py-2 text-xs font-pixel text-white">
+          🔄 RESTART
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: GEMINI AI STRATEGY ADVISOR -->
+  <div id="aiAdvisorModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="mc-border bg-slate-900 max-w-lg w-full rounded-xl p-5 shadow-pixel-lg border-2 border-amber-500/80 flex flex-col gap-4 relative">
+      
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded bg-amber-600 border border-amber-300 flex items-center justify-center text-lg">
+            🤖
+          </div>
+          <div>
+            <h3 class="font-pixel text-xs sm:text-sm text-amber-400">GEMINI REDSTONE AI ADVISOR</h3>
+            <p class="text-[10px] text-slate-400">Powered by Gemini 3 Flash & TTS Speech</p>
+          </div>
+        </div>
+        <button id="closeAiAdvisorBtn" class="text-slate-400 hover:text-white font-bold text-lg px-2">✕</button>
+      </div>
+
+      <!-- Quick Action: Analyze Current State -->
+      <div class="flex gap-2">
+        <button id="analyzeBoardBtn" class="mc-button mc-button-primary flex-1 py-2 text-xs font-pixel text-white flex items-center justify-center gap-1.5">
+          <span>⚡ Analyze Current Board State</span>
+        </button>
+      </div>
+
+      <!-- AI Response Output Area -->
+      <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 min-h-[140px] max-h-[220px] overflow-y-auto flex flex-col justify-between">
+        <div id="aiResponseText" class="text-xs text-slate-200 leading-relaxed font-sans space-y-2">
+          <p class="text-slate-500 italic">Click "Analyze Current Board State" or ask a question below to receive custom tactical guidance from Gemini AI!</p>
+        </div>
+        
+        <!-- Audio TTS Controls -->
+        <div id="aiAudioControls" class="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between hidden">
+          <span class="text-[10px] text-amber-400 font-pixel">🎙️ Gemini Voice Synthesis</span>
+          <button id="playTtsBtn" class="px-2.5 py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 rounded flex items-center gap-1 font-semibold">
+            ▶️ Speak Advice
+          </button>
+        </div>
+      </div>
+
+      <!-- Custom AI Query Input -->
+      <div class="flex gap-2">
+        <input id="aiCustomPromptInput" type="text" placeholder="e.g. Why can't I take the wolf first?" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-amber-400" />
+        <button id="sendAiQueryBtn" class="mc-button px-3 py-2 text-xs font-pixel text-white">
+          Ask
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: GEMINI AI CUSTOM LEVEL GENERATOR -->
+  <div id="aiGeneratorModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="mc-border bg-slate-900 max-w-lg w-full rounded-xl p-5 shadow-pixel-lg border-2 border-emerald-500/80 flex flex-col gap-4 relative">
+      
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded bg-emerald-600 border border-emerald-300 flex items-center justify-center text-lg">
+            ⚡
+          </div>
+          <div>
+            <h3 class="font-pixel text-xs sm:text-sm text-emerald-400">AI CUSTOM LEVEL GENERATOR</h3>
+            <p class="text-[10px] text-slate-400">Generate custom items & rules with Gemini JSON Schema</p>
+          </div>
+        </div>
+        <button id="closeAiGeneratorBtn" class="text-slate-400 hover:text-white font-bold text-lg px-2">✕</button>
+      </div>
+
+      <!-- Preset Theme Selector -->
+      <div>
+        <label class="block text-xs font-bold text-slate-300 mb-1.5 font-pixel">Quick Theme Presets:</label>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <button data-theme="Minecraft Nether Fortress: Piglin, Blaze Rod, and Magma Cube crossing Lava River" class="themePresetBtn bg-slate-950 border border-slate-800 hover:border-emerald-500 p-2 rounded text-left text-slate-300 transition">
+            🌋 Nether Lava River
+          </button>
+          <button data-theme="Wizard Fantasy Tower: Phoenix Egg, Ice Orb, and Fire Dragon crossing Arcane Void" class="themePresetBtn bg-slate-950 border border-slate-800 hover:border-emerald-500 p-2 rounded text-left text-slate-300 transition">
+            🧙‍♂️ Wizard Arcane Void
+          </button>
+          <button data-theme="Cyberpunk Sci-Fi Freighter: Hacker Chip, Sentinel Drone, and EMP Core crossing Cyber Chasm" class="themePresetBtn bg-slate-950 border border-slate-800 hover:border-emerald-500 p-2 rounded text-left text-slate-300 transition">
+            🚀 Cyberpunk Chasm
+          </button>
+          <button data-theme="Classic Farm River: Fox, Goose, and Grain Bag crossing Deep Creek" class="themePresetBtn bg-slate-950 border border-slate-800 hover:border-emerald-500 p-2 rounded text-left text-slate-300 transition">
+            🦊 Fox, Goose & Grain
+          </button>
+        </div>
+      </div>
+
+      <!-- Custom Prompt Input -->
+      <div>
+        <label class="block text-xs font-bold text-slate-300 mb-1 font-pixel">Or Describe Your Own Scenario:</label>
+        <textarea id="aiCustomLevelPrompt" rows="3" placeholder="e.g. A pirate captain transporting a Parrot, Gold Chest, and Krazy Monkey across a shark infested lagoon..." class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-400"></textarea>
+      </div>
+
+      <!-- Loading Indicator / Status -->
+      <div id="aiGenStatus" class="hidden text-xs text-center p-2 rounded bg-slate-950 border border-slate-800 text-emerald-400 font-pixel animate-pulse">
+        ⏳ Gemini is constructing scenario rules & items...
+      </div>
+
+      <!-- Generate Action Button -->
+      <div class="flex justify-end gap-2">
+        <button id="generateCustomLevelBtn" class="mc-button mc-button-primary w-full py-2.5 text-xs font-pixel text-white flex items-center justify-center gap-2">
+          ✨ GENERATE & PLAY CUSTOM LEVEL
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: VICTORY CELEBRATION -->
+  <div id="victoryModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="mc-border bg-slate-900 max-w-md w-full rounded-xl p-6 shadow-pixel-lg border-2 border-emerald-500 flex flex-col items-center text-center relative">
+      
+      <!-- Golden Trophy / Reward Icon -->
+      <div class="relative mb-3">
+        <div class="w-20 h-20 rounded-2xl bg-amber-900/90 border-4 border-amber-400 flex items-center justify-center text-5xl shadow-glow-gold animate-bounce">
+          👑
+        </div>
+        <span class="absolute -top-2 -right-2 bg-amber-400 text-slate-950 text-[10px] font-pixel font-bold px-2 py-0.5 rounded-full border border-black shadow">
+          +500 XP
+        </span>
+      </div>
+
+      <h3 class="font-pixel text-base sm:text-lg text-emerald-400 tracking-wide mb-1">
+        GOAL ACHIEVED!
+      </h3>
+      <p class="font-pixel text-[10px] text-amber-300 mb-4">Master Sequential Planner</p>
+
+      <!-- Reward Card Box -->
+      <div class="w-full bg-slate-950 border-2 border-amber-500/80 rounded-xl p-4 text-xs text-slate-200 mb-5 space-y-3 relative overflow-hidden">
+        
+        <!-- Reward Title & Badge -->
+        <div class="bg-gradient-to-r from-amber-950 via-amber-800/60 to-amber-950 p-2.5 rounded-lg border border-amber-400/50 flex items-center gap-3">
+          <div class="text-3xl">🏅</div>
+          <div class="text-left">
+            <div class="font-pixel text-[9px] text-amber-300 uppercase tracking-wider">Reward Unlocked</div>
+            <div id="rewardTitle" class="font-bold text-emerald-300 text-xs sm:text-sm font-pixel">
+              Master Logic Crown
+            </div>
+          </div>
+        </div>
+
+        <!-- Star Rating -->
+        <div id="starRatingBox" class="flex justify-center items-center gap-1 text-2xl py-1">
+          ⭐⭐⭐
+        </div>
+
+        <!-- Achievement Description Message -->
+        <p id="rewardMessage" class="text-[11px] text-slate-300 italic px-1">
+          🎉 Flawless planning! You safely transported all items across the river in the optimal 7 moves!
+        </p>
+
+        <div class="flex justify-around items-center pt-2.5 border-t border-slate-800 font-pixel text-[11px]">
+          <div>
+            <span class="text-slate-400 block text-[9px]">YOUR MOVES</span>
+            <span id="victoryMoves" class="text-amber-400 text-sm">0</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block text-[9px]">OPTIMAL</span>
+            <span id="victoryOptimal" class="text-emerald-400 text-sm">7</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Victory Story Section -->
+      <div id="victoryStoryContainer" class="w-full mb-4 hidden">
+        <div class="bg-slate-950 border border-amber-500/50 rounded-lg p-3 text-left">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-2">
+            <span class="font-pixel text-[10px] text-amber-300">📜 GEMINI VICTORY CHRONICLES</span>
+            <button id="victoryTtsBtn" class="text-[10px] text-emerald-400 hover:underline flex items-center gap-1">
+              🎙️ Listen
+            </button>
+          </div>
+          <p id="victoryStoryText" class="text-[11px] text-slate-300 leading-relaxed font-sans"></p>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex flex-col gap-2 w-full">
+        <button id="generateVictoryStoryBtn" class="mc-button px-3 py-2 text-xs font-pixel text-amber-300 flex items-center justify-center gap-1">
+          📜 GENERATE AI VICTORY LORE
+        </button>
+        <button id="victoryResetBtn" class="mc-button mc-button-primary w-full py-2.5 text-xs font-pixel text-white">
+          🎮 PLAY AGAIN
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Minecraft Minecart River Crossing Game Logic + Gemini API Enhancements
+     */
+
+    // Default Scenario Definition
+    const DEFAULT_SCENARIO = {
+      themeName: 'Minecraft River Crossing',
+      startBankLabel: 'Start Side',
+      craftingBankLabel: 'Crafting Side',
+      optimalMoves: 7,
+      items: {
+        apple: {
+          id: 'apple',
+          name: 'Golden Apple',
+          icon: '🍎',
+          badgeColor: 'border-amber-400 bg-amber-950/60 text-amber-200',
+          desc: 'Delicious & magical item',
+          enchanted: true
+        },
+        goblin: {
+          id: 'goblin',
+          name: 'Mischievous Goblin',
+          icon: '👺',
+          badgeColor: 'border-red-500 bg-red-950/60 text-red-200',
+          desc: 'Hungry for apples!',
+          enchanted: false
+        },
+        wolf: {
+          id: 'wolf',
+          name: 'Tamed Wolf',
+          icon: '🐺',
+          badgeColor: 'border-blue-400 bg-blue-950/60 text-blue-200',
+          desc: 'Loyal but chases goblins!',
+          enchanted: false
+        }
+      },
+      constraints: [
+        {
+          item1Id: 'goblin',
+          item2Id: 'apple',
+          failMessage: `💥 <strong>Rule Violation!</strong><br/><br/>You left the <span class="text-red-400 font-bold">Mischievous Goblin</span> alone with the <span class="text-amber-400 font-bold">Golden Apple</span> without the Player present!<br/><br/>The Goblin devoured the apple!`
+        },
+        {
+          item1Id: 'wolf',
+          item2Id: 'goblin',
+          failMessage: `💥 <strong>Rule Violation!</strong><br/><br/>You left the <span class="text-blue-400 font-bold">Tamed Wolf</span> alone with the <span class="text-red-400 font-bold">Mischievous Goblin</span> without the Player present!<br/><br/>The Wolf chased the Goblin far into the forest!`
+        }
+      ]
+    };
+
+    // Active Scenario state
+    let activeScenario = JSON.parse(JSON.stringify(DEFAULT_SCENARIO));
+
+    // State Variables
+    let gameState = {
+      startBank: ['apple', 'goblin', 'wolf'],
+      craftingBank: [],
+      cartCargo: null, // null or item key
+      cartPosition: 'start', // 'start' or 'crafting'
+      moveCount: 0,
+      isMoving: false,
+      history: [] // stack for undo operations
+    };
+
+    let audioEnabled = true;
+    let currentTtsText = "";
+    let ttsAudioPlayer = null;
+
+    
+    // Call Gemini Text Model (gemini-3-flash-preview)
+    async function callGeminiText(userQuery, systemInstruction = "") {
+      const apiKey = "";
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: userQuery }] }],
+      };
+      if (systemInstruction) {
+        payload.systemInstruction = { parts: [{ text: systemInstruction }] };
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      return result?.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't process that request right now.";
+    }
+
+    // Call Gemini Structured JSON Model (gemini-3-flash-preview)
+    async function callGeminiStructured(prompt, systemInstruction, schema) {
+      const apiKey = "";
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: schema
+        }
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      const rawJson = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+      return JSON.parse(rawJson);
+    }
+
+    // Call Gemini Speech Model (gemini-2.5-flash-preview-tts)
+    async function callGeminiTTS(textToSpeak) {
+      const apiKey = "";
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: `Say clearly in a helpful, friendly voice: ${textToSpeak}` }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: "Puck" }
+            }
+          }
+        }
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      const part = result?.candidates?.[0]?.content?.parts?.[0];
+      const audioDataBase64 = part?.inlineData?.data;
+      const mimeType = part?.inlineData?.mimeType || "audio/L16;rate=24000";
+
+      if (!audioDataBase64) throw new Error("No audio returned");
+
+      let sampleRate = 24000;
+      const rateMatch = mimeType.match(/rate=(\d+)/);
+      if (rateMatch) sampleRate = parseInt(rateMatch[1], 10);
+
+      const pcmBuffer = base64ToArrayBuffer(audioDataBase64);
+      const pcm16 = new Int16Array(pcmBuffer);
+      const wavBlob = pcmToWav(pcm16, sampleRate);
+      return URL.createObjectURL(wavBlob);
+    }
+
+    // PCM To WAV conversion utilities
+    function base64ToArrayBuffer(base64) {
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    function pcmToWav(pcm16Data, sampleRate = 24000) {
+      const numChannels = 1;
+      const bitsPerSample = 16;
+      const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+      const blockAlign = (numChannels * bitsPerSample) / 8;
+      const dataSize = pcm16Data.length * 2;
+      const buffer = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(buffer);
+
+      function writeString(v, offset, str) {
+        for (let i = 0; i < str.length; i++) {
+          v.setUint8(offset + i, str.charCodeAt(i));
+        }
+      }
+
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + dataSize, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitsPerSample, true);
+      writeString(view, 36, 'data');
+      view.setUint32(40, dataSize, true);
+
+      let offset = 44;
+      for (let i = 0; i < pcm16Data.length; i++, offset += 2) {
+        view.setInt16(offset, pcm16Data[i], true);
+      }
+
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    const playSound = (type) => {
+      if (!audioEnabled) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+
+        if (type === 'click') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(400, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 0.08);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.08);
+        } else if (type === 'ride') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(150, ctx.currentTime);
+          osc.frequency.linearRampToValueAtTime(220, ctx.currentTime + 0.5);
+          osc.frequency.linearRampToValueAtTime(120, ctx.currentTime + 1.1);
+          gain.gain.setValueAtTime(0.1, ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.6);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.1);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 1.1);
+        } else if (type === 'fail') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, ctx.currentTime);
+          osc.frequency.linearRampToValueAtTime(60, ctx.currentTime + 0.4);
+          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.4);
+        } else if (type === 'victory') {
+          const notes = [261.63, 329.63, 392.00, 523.25, 659.25];
+          notes.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+            const startTime = ctx.currentTime + idx * 0.12;
+            gain.gain.setValueAtTime(0.2, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(startTime);
+            osc.stop(startTime + 0.3);
+          });
+        }
+      } catch (e) {
+        console.warn('Audio play failed:', e);
+      }
+    };
+
+    // DOM Elements
+    const startItemsDeck = document.getElementById('startItemsDeck');
+    const craftingItemsDeck = document.getElementById('craftingItemsDeck');
+    const minecartCargoSlot = document.getElementById('minecartCargoSlot');
+    const minecartContainer = document.getElementById('minecartContainer');
+    const rideBtn = document.getElementById('rideBtn');
+    const moveCountBadge = document.getElementById('moveCountBadge');
+    const statusMessage = document.getElementById('statusMessage');
+    const moveLogList = document.getElementById('moveLogList');
+    const logCountLabel = document.getElementById('logCountLabel');
+    const cartPosText = document.getElementById('cartPosText');
+    const startCountBadge = document.getElementById('startCountBadge');
+    const craftingCountBadge = document.getElementById('craftingCountBadge');
+    const playerStartIndicator = document.getElementById('playerStartIndicator');
+    const playerCraftingIndicator = document.getElementById('playerCraftingIndicator');
+    const quickUndoBtn = document.getElementById('quickUndoBtn');
+
+    // Modals
+    const gameOverModal = document.getElementById('gameOverModal');
+    const failReasonBox = document.getElementById('failReasonBox');
+    const modalUndoBtn = document.getElementById('modalUndoBtn');
+    const modalRestartBtn = document.getElementById('modalRestartBtn');
+
+    const victoryModal = document.getElementById('victoryModal');
+    const victoryMoves = document.getElementById('victoryMoves');
+    const victoryResetBtn = document.getElementById('victoryResetBtn');
+
+    // Controls
+    const soundToggleBtn = document.getElementById('soundToggleBtn');
+    const resetGameBtn = document.getElementById('resetGameBtn');
+    const showHintBtn = document.getElementById('showHintBtn');
+
+    // Helper to generate HTML for an item card
+    const createItemCardHtml = (itemKey, location) => {
+      const item = activeScenario.items[itemKey];
+      if (!item) return '';
+      const isEnchanted = item.enchanted ? 'enchanted' : '';
+      return `
+        <button onclick="handleItemClick('${itemKey}', '${location}')" 
+                class="w-full text-left bg-slate-900 border-2 ${item.badgeColor || 'border-amber-400 bg-slate-900 text-slate-100'} rounded-lg p-2 flex items-center justify-between hover:brightness-125 transition-all shadow-md group">
+          <div class="flex items-center gap-2.5">
+            <span class="text-2xl ${isEnchanted}">${item.icon}</span>
+            <div>
+              <div class="text-xs font-bold font-pixel tracking-tight">${item.name}</div>
+              <div class="text-[10px] text-slate-400 font-sans">${item.desc}</div>
+            </div>
+          </div>
+          <span class="text-[10px] font-pixel px-2 py-1 rounded bg-slate-800 border border-slate-700 text-amber-300 opacity-90 group-hover:scale-105 transition-transform">
+            ${location === 'cart' ? 'UNLOAD ⏬' : 'LOAD 🛒'}
+          </span>
+        </button>
+      `;
+    };
+
+    const render = () => {
+      moveCountBadge.textContent = gameState.moveCount;
+      logCountLabel.textContent = `${gameState.moveCount} steps recorded`;
+
+      startCountBadge.textContent = `${gameState.startBank.length} items`;
+      craftingCountBadge.textContent = `${gameState.craftingBank.length} items`;
+
+      if (gameState.cartPosition === 'start') {
+        playerStartIndicator.classList.remove('hidden');
+        playerCraftingIndicator.classList.add('hidden');
+        cartPosText.textContent = activeScenario.startBankLabel.toUpperCase();
+        minecartContainer.style.left = '4%';
+      } else {
+        playerStartIndicator.classList.add('hidden');
+        playerCraftingIndicator.classList.remove('hidden');
+        cartPosText.textContent = activeScenario.craftingBankLabel.toUpperCase();
+        minecartContainer.style.left = '50%';
+      }
+
+      startItemsDeck.innerHTML = gameState.startBank.length === 0
+        ? `<div class="text-[11px] text-emerald-200/50 italic text-center py-4">Bank is empty</div>`
+        : gameState.startBank.map(key => createItemCardHtml(key, 'start')).join('');
+
+      craftingItemsDeck.innerHTML = gameState.craftingBank.length === 0
+        ? `<div class="text-[11px] text-amber-200/50 italic text-center py-4">Bank is empty</div>`
+        : gameState.craftingBank.map(key => createItemCardHtml(key, 'crafting')).join('');
+
+      if (gameState.cartCargo) {
+        const cargoItem = activeScenario.items[gameState.cartCargo];
+        minecartCargoSlot.innerHTML = `
+          <button onclick="handleItemClick('${gameState.cartCargo}', 'cart')" class="w-full">
+            <div class="bg-slate-900 border border-amber-400 rounded p-1.5 flex items-center justify-between w-full shadow cursor-pointer hover:bg-slate-800">
+              <div class="flex items-center gap-2">
+                <span class="text-xl">${cargoItem?.icon || '📦'}</span>
+                <span class="text-xs font-bold text-amber-300 font-pixel">${cargoItem?.name || gameState.cartCargo}</span>
+              </div>
+              <span class="text-[9px] text-red-400 hover:underline font-bold">Unload ✕</span>
+            </div>
+          </button>
+        `;
+      } else {
+        minecartCargoSlot.innerHTML = `
+          <span class="text-[10px] text-slate-500 italic">Cargo Slot Empty (Optional)</span>
+        `;
+      }
+
+      quickUndoBtn.disabled = gameState.history.length === 0 || gameState.isMoving;
+      rideBtn.disabled = gameState.isMoving;
+    };
+
+    const pushHistory = () => {
+      gameState.history.push({
+        startBank: [...gameState.startBank],
+        craftingBank: [...gameState.craftingBank],
+        cartCargo: gameState.cartCargo,
+        cartPosition: gameState.cartPosition,
+        moveCount: gameState.moveCount
+      });
+    };
+
+    const undoLastMove = () => {
+      if (gameState.history.length === 0 || gameState.isMoving) return;
+      playSound('click');
+      const previous = gameState.history.pop();
+      gameState.startBank = previous.startBank;
+      gameState.craftingBank = previous.craftingBank;
+      gameState.cartCargo = previous.cartCargo;
+      gameState.cartPosition = previous.cartPosition;
+      gameState.moveCount = previous.moveCount;
+
+      if (moveLogList.lastElementChild) {
+        moveLogList.removeChild(moveLogList.lastElementChild);
+      }
+
+      gameOverModal.classList.add('hidden');
+      statusMessage.textContent = 'Undid last move. Plan your next trip!';
+      render();
+    };
+
+    window.handleItemClick = (itemKey, location) => {
+      if (gameState.isMoving) return;
+      playSound('click');
+
+      if (location === 'cart') {
+        if (gameState.cartPosition === 'start') {
+          gameState.startBank.push(itemKey);
+        } else {
+          gameState.craftingBank.push(itemKey);
+        }
+        gameState.cartCargo = null;
+        statusMessage.textContent = `Unloaded ${activeScenario.items[itemKey]?.name || itemKey} from minecart.`;
+      } else {
+        if (location !== gameState.cartPosition) {
+          statusMessage.textContent = `❌ You must be on the ${location.toUpperCase()} side to interact with those items!`;
+          return;
+        }
+
+        if (gameState.cartCargo) {
+          const previousCargo = gameState.cartCargo;
+          if (gameState.cartPosition === 'start') {
+            gameState.startBank.push(previousCargo);
+          } else {
+            gameState.craftingBank.push(previousCargo);
+          }
+        }
+
+        if (location === 'start') {
+          gameState.startBank = gameState.startBank.filter(i => i !== itemKey);
+        } else {
+          gameState.craftingBank = gameState.craftingBank.filter(i => i !== itemKey);
+        }
+
+        gameState.cartCargo = itemKey;
+        statusMessage.textContent = `Loaded ${activeScenario.items[itemKey]?.name || itemKey} into the minecart.`;
+      }
+
+      render();
+      checkGameState();
+    };
+
+    const evaluateConstraints = () => {
+      const isPlayerAtStart = gameState.cartPosition === 'start';
+      let bankToCheck = isPlayerAtStart ? gameState.craftingBank : gameState.startBank;
+
+      // Check dynamic scenario constraints (items left on bank without Player)
+      for (const rule of activeScenario.constraints) {
+        if (bankToCheck.includes(rule.item1Id) && bankToCheck.includes(rule.item2Id)) {
+          return {
+            violated: true,
+            reason: rule.failMessage
+          };
+        }
+      }
+
+      // Check Victory Condition: All scenario items present on Crafting Bank (in bank or in cart at crafting side)
+      const totalItemCount = Object.keys(activeScenario.items).length;
+      let itemsAtCrafting = [...gameState.craftingBank];
+      if (gameState.cartPosition === 'crafting' && gameState.cartCargo) {
+        itemsAtCrafting.push(gameState.cartCargo);
+      }
+
+      if (itemsAtCrafting.length === totalItemCount) {
+        return { victory: true };
+      }
+
+      return { safe: true };
+    };
+
+    const checkGameState = () => {
+      const result = evaluateConstraints();
+
+      if (result.violated) {
+        playSound('fail');
+        failReasonBox.innerHTML = result.reason;
+        gameOverModal.classList.remove('hidden');
+      } else if (result.victory) {
+        playSound('victory');
+        
+        // Unload cart cargo automatically into crafting bank on victory for visual completion
+        if (gameState.cartCargo) {
+          gameState.craftingBank.push(gameState.cartCargo);
+          gameState.cartCargo = null;
+          render();
+        }
+
+        statusMessage.innerHTML = `🎉 <strong class="text-amber-400">GOAL ACHIEVED!</strong> You safely transported all items across!`;
+        victoryMoves.textContent = gameState.moveCount;
+
+        const victoryOptimal = document.getElementById('victoryOptimal');
+        if (victoryOptimal) victoryOptimal.textContent = activeScenario.optimalMoves || 7;
+
+        const rewardTitle = document.getElementById('rewardTitle');
+        const starRatingBox = document.getElementById('starRatingBox');
+        const rewardMessage = document.getElementById('rewardMessage');
+
+        const opt = activeScenario.optimalMoves || 7;
+        if (gameState.moveCount === opt) {
+          starRatingBox.textContent = '⭐⭐⭐';
+          rewardTitle.textContent = '🥇 Master Logic Crown';
+          rewardMessage.textContent = `🏆 Perfect Solution! You solved the puzzle in the optimal ${opt} moves!`;
+        } else if (gameState.moveCount <= opt + 2) {
+          starRatingBox.textContent = '⭐⭐';
+          rewardTitle.textContent = '🥈 Emerald Planner Badge';
+          rewardMessage.textContent = '🌟 Excellent job! All items safely delivered across!';
+        } else {
+          starRatingBox.textContent = '⭐';
+          rewardTitle.textContent = '🥉 Logic Apprentice Badge';
+          rewardMessage.textContent = `👍 Goal Achieved! See if you can solve it in ${opt} moves!`;
+        }
+
+        victoryModal.classList.remove('hidden');
+      }
+    };
+
+    const rideMinecart = () => {
+      if (gameState.isMoving) return;
+
+      pushHistory();
+      gameState.isMoving = true;
+      playSound('ride');
+
+      const origin = gameState.cartPosition;
+      const destination = origin === 'start' ? 'crafting' : 'start';
+      const cargoItem = gameState.cartCargo ? activeScenario.items[gameState.cartCargo] : null;
+      const cargoName = cargoItem ? cargoItem.name : 'empty cargo';
+
+      statusMessage.textContent = `🚂 Riding Minecart with ${cargoName} across...`;
+      render();
+
+      setTimeout(() => {
+        gameState.cartPosition = destination;
+        gameState.moveCount += 1;
+        gameState.isMoving = false;
+
+        const logEntry = document.createElement('div');
+        logEntry.className = 'bg-slate-900 border border-slate-800 p-2 rounded text-[11px] text-slate-300 shadow-sm flex items-start gap-1.5';
+        const icon = destination === 'crafting' ? '➡️' : '⬅️';
+        logEntry.innerHTML = `
+          <span class="text-amber-400 font-pixel font-bold">#${gameState.moveCount}</span>
+          <div>
+            <span class="text-slate-200 font-semibold">${icon} ${origin.toUpperCase()} to ${destination.toUpperCase()}</span>
+            <div class="text-[10px] text-slate-400">Carried: ${cargoItem ? cargoItem.icon + ' ' + cargoItem.name : 'None (Solo Ride)'}</div>
+          </div>
+        `;
+
+        if (moveLogList.querySelector('.italic')) {
+          moveLogList.innerHTML = '';
+        }
+        moveLogList.appendChild(logEntry);
+        moveLogList.scrollTop = moveLogList.scrollHeight;
+
+        render();
+        checkGameState();
+      }, 1200);
+    };
+
+    const resetGame = () => {
+      playSound('click');
+      gameState = {
+        startBank: Object.keys(activeScenario.items),
+        craftingBank: [],
+        cartCargo: null,
+        cartPosition: 'start',
+        moveCount: 0,
+        isMoving: false,
+        history: []
+      };
+
+      moveLogList.innerHTML = `
+        <div class="text-slate-500 text-[11px] italic text-center my-auto py-4">
+          No trips made yet. Load an item into the minecart to begin!
+        </div>
+      `;
+
+      gameOverModal.classList.add('hidden');
+      victoryModal.classList.add('hidden');
+      document.getElementById('victoryStoryContainer').classList.add('hidden');
+      statusMessage.textContent = `Scenario loaded: ${activeScenario.themeName}. Plan your sequence!`;
+      render();
+    };
+
+
+    // AI Strategy Advisor Elements
+    const aiAdvisorModal = document.getElementById('aiAdvisorModal');
+    const aiAdvisorToggleBtn = document.getElementById('aiAdvisorToggleBtn');
+    const closeAiAdvisorBtn = document.getElementById('closeAiAdvisorBtn');
+    const analyzeBoardBtn = document.getElementById('analyzeBoardBtn');
+    const aiResponseText = document.getElementById('aiResponseText');
+    const aiAudioControls = document.getElementById('aiAudioControls');
+    const playTtsBtn = document.getElementById('playTtsBtn');
+    const aiCustomPromptInput = document.getElementById('aiCustomPromptInput');
+    const sendAiQueryBtn = document.getElementById('sendAiQueryBtn');
+    const askAiQuickBtn = document.getElementById('askAiQuickBtn');
+
+    // AI Generator Elements
+    const aiGeneratorModal = document.getElementById('aiGeneratorModal');
+    const aiGeneratorToggleBtn = document.getElementById('aiGeneratorToggleBtn');
+    const closeAiGeneratorBtn = document.getElementById('closeAiGeneratorBtn');
+    const generateCustomLevelBtn = document.getElementById('generateCustomLevelBtn');
+    const aiCustomLevelPrompt = document.getElementById('aiCustomLevelPrompt');
+    const aiGenStatus = document.getElementById('aiGenStatus');
+
+    // Victory Story Elements
+    const generateVictoryStoryBtn = document.getElementById('generateVictoryStoryBtn');
+    const victoryStoryContainer = document.getElementById('victoryStoryContainer');
+    const victoryStoryText = document.getElementById('victoryStoryText');
+    const victoryTtsBtn = document.getElementById('victoryTtsBtn');
+
+    // Toggle Modals
+    aiAdvisorToggleBtn.addEventListener('click', () => {
+      playSound('click');
+      aiAdvisorModal.classList.remove('hidden');
+    });
+    askAiQuickBtn.addEventListener('click', () => {
+      playSound('click');
+      aiAdvisorModal.classList.remove('hidden');
+    });
+    closeAiAdvisorBtn.addEventListener('click', () => {
+      aiAdvisorModal.classList.add('hidden');
+    });
+
+    aiGeneratorToggleBtn.addEventListener('click', () => {
+      playSound('click');
+      aiGeneratorModal.classList.remove('hidden');
+    });
+    closeAiGeneratorBtn.addEventListener('click', () => {
+      aiGeneratorModal.classList.add('hidden');
+    });
+
+    // Theme preset click handler
+    document.querySelectorAll('.themePresetBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        aiCustomLevelPrompt.value = btn.dataset.theme;
+      });
+    });
+
+    // Request AI State Analysis
+    async function fetchAiAnalysis(customQuery = "") {
+      aiResponseText.innerHTML = `<span class="text-amber-400 font-pixel animate-pulse">🤖 Gemini is calculating optimal tactical move...</span>`;
+      aiAudioControls.classList.add('hidden');
+
+      const startNames = gameState.startBank.map(id => activeScenario.items[id]?.name || id).join(', ') || 'None';
+      const craftNames = gameState.craftingBank.map(id => activeScenario.items[id]?.name || id).join(', ') || 'None';
+      const cargoName = gameState.cartCargo ? activeScenario.items[gameState.cartCargo]?.name : 'None';
+
+      const sysInstruction = `You are Redstone-AI, a Minecraft puzzle strategist and logic assistant. You give encouraging, concise, 2-3 sentence hints without directly spoiling the entire puzzle solution unless asked explicitly. Keep tone fun and blocky.`;
+
+      const userPrompt = customQuery || `Analyze my current puzzle state:
+Scenario: ${activeScenario.themeName}
+Start Side Items: [${startNames}]
+Crafting Side Items: [${craftNames}]
+Cart Position: ${gameState.cartPosition.toUpperCase()}
+Cart Cargo: ${cargoName}
+Moves taken so far: ${gameState.moveCount}
+
+Provide tactical advice on what item I should transport next and why!`;
+
+      try {
+        const text = await callGeminiText(userPrompt, sysInstruction);
+        aiResponseText.innerHTML = text.replace(/\n/g, '<br/>');
+        currentTtsText = text;
+        aiAudioControls.classList.remove('hidden');
+      } catch (err) {
+        aiResponseText.innerHTML = `<span class="text-red-400">Failed to connect to Gemini API. Please check internet connection.</span>`;
+      }
+    }
+
+    analyzeBoardBtn.addEventListener('click', () => fetchAiAnalysis());
+    sendAiQueryBtn.addEventListener('click', () => {
+      const q = aiCustomPromptInput.value.trim();
+      if (q) {
+        fetchAiAnalysis(q);
+        aiCustomPromptInput.value = '';
+      }
+    });
+
+    // Play TTS Audio
+    playTtsBtn.addEventListener('click', async () => {
+      if (!currentTtsText) return;
+      playTtsBtn.disabled = true;
+      playTtsBtn.textContent = '⏳ Synthesizing Voice...';
+      try {
+        const audioUrl = await callGeminiTTS(currentTtsText);
+        if (ttsAudioPlayer) ttsAudioPlayer.pause();
+        ttsAudioPlayer = new Audio(audioUrl);
+        ttsAudioPlayer.play();
+        playTtsBtn.textContent = '🔊 Playing...';
+        ttsAudioPlayer.onended = () => { playTtsBtn.textContent = '▶️ Speak Advice'; playTtsBtn.disabled = false; };
+      } catch (e) {
+        playTtsBtn.textContent = '❌ Speech Failed';
+        setTimeout(() => { playTtsBtn.textContent = '▶️ Speak Advice'; playTtsBtn.disabled = false; }, 2000);
+      }
+    });
+
+    generateCustomLevelBtn.addEventListener('click', async () => {
+      const promptText = aiCustomLevelPrompt.value.trim() || "Minecraft Nether Fortress crossing lava river";
+      aiGenStatus.classList.remove('hidden');
+      generateCustomLevelBtn.disabled = true;
+
+      const schema = {
+        type: "OBJECT",
+        properties: {
+          themeName: { type: "STRING" },
+          startBankLabel: { type: "STRING" },
+          craftingBankLabel: { type: "STRING" },
+          items: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                id: { type: "STRING" },
+                name: { type: "STRING" },
+                icon: { type: "STRING" },
+                desc: { type: "STRING" },
+                badgeColor: { type: "STRING" }
+              },
+              required: ["id", "name", "icon", "desc"]
+            }
+          },
+          constraints: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                item1Id: { type: "STRING" },
+                item2Id: { type: "STRING" },
+                failMessage: { type: "STRING" }
+              },
+              required: ["item1Id", "item2Id", "failMessage"]
+            }
+          },
+          hintMessage: { type: "STRING" }
+        },
+        required: ["themeName", "startBankLabel", "craftingBankLabel", "items", "constraints"]
+      };
+
+      const systemPrompt = `You are a game designer creating a sequential constraint river crossing puzzle (like Fox, Goose, Grain). 
+Generate 3 distinct items (with IDs, names, single emoji icons, descriptions) and 2 logical conflict constraints where two items cannot be left alone on a bank without the Player.
+Return strictly structured JSON format matching the schema.`;
+
+      try {
+        const result = await callGeminiStructured(promptText, systemPrompt, schema);
+
+        // Convert array of items to object dictionary
+        const itemsObj = {};
+        result.items.slice(0, 3).forEach(it => {
+          itemsObj[it.id] = {
+            id: it.id,
+            name: it.name,
+            icon: it.icon || '📦',
+            badgeColor: it.badgeColor || 'border-amber-400 bg-amber-950/60 text-amber-200',
+            desc: it.desc || 'Custom puzzle item',
+            enchanted: false
+          };
+        });
+
+        activeScenario = {
+          themeName: result.themeName || 'Custom AI Level',
+          startBankLabel: result.startBankLabel || 'Start Side',
+          craftingBankLabel: result.craftingBankLabel || 'Crafting Side',
+          optimalMoves: 7,
+          items: itemsObj,
+          constraints: result.constraints || []
+        };
+
+        aiGeneratorModal.classList.add('hidden');
+        resetGame();
+        statusMessage.innerHTML = `✨ <strong>New Level Generated!</strong> Theme: ${activeScenario.themeName}`;
+      } catch (e) {
+        alert("Failed to generate custom level. Please try another prompt!");
+      } finally {
+        aiGenStatus.classList.add('hidden');
+        generateCustomLevelBtn.disabled = false;
+      }
+    });
+
+    // Generate Victory Story
+    generateVictoryStoryBtn.addEventListener('click', async () => {
+      generateVictoryStoryBtn.disabled = true;
+      generateVictoryStoryBtn.textContent = "⏳ Writing Lore...";
+      const prompt = `Write a hilarious 3-sentence victory lore story for a player who solved the ${activeScenario.themeName} puzzle in ${gameState.moveCount} moves carrying items across the river.`;
+      
+      try {
+        const story = await callGeminiText(prompt, "You are a witty fantasy chronicler.");
+        victoryStoryText.textContent = story;
+        victoryStoryContainer.classList.remove('hidden');
+        currentTtsText = story;
+      } catch (e) {
+        victoryStoryText.textContent = "Your heroic crossing was recorded in legend!";
+        victoryStoryContainer.classList.remove('hidden');
+      } finally {
+        generateVictoryStoryBtn.disabled = false;
+        generateVictoryStoryBtn.textContent = "📜 GENERATE AI VICTORY LORE";
+      }
+    });
+
+    victoryTtsBtn.addEventListener('click', async () => {
+      if (!currentTtsText) return;
+      victoryTtsBtn.textContent = '⏳ Synthesizing...';
+      try {
+        const audioUrl = await callGeminiTTS(currentTtsText);
+        if (ttsAudioPlayer) ttsAudioPlayer.pause();
+        ttsAudioPlayer = new Audio(audioUrl);
+        ttsAudioPlayer.play();
+        victoryTtsBtn.textContent = '🔊 Playing...';
+        ttsAudioPlayer.onended = () => { victoryTtsBtn.textContent = '🎙️ Listen'; };
+      } catch (e) {
+        victoryTtsBtn.textContent = '❌ Error';
+      }
+    });
+
+    // Event Listener Bindings
+    rideBtn?.addEventListener('click', rideMinecart);
+    resetGameBtn?.addEventListener('click', resetGame);
+    modalRestartBtn?.addEventListener('click', resetGame);
+    victoryResetBtn?.addEventListener('click', resetGame);
+
+    quickUndoBtn?.addEventListener('click', undoLastMove);
+    modalUndoBtn?.addEventListener('click', undoLastMove);
+
+    // Toggle drawer for mobile responsiveness
+    const toggleDrawerBtn = document.getElementById('toggleDrawerBtn');
+    const plannerDrawer = document.getElementById('plannerDrawer');
+    toggleDrawerBtn?.addEventListener('click', () => {
+      playSound('click');
+      plannerDrawer?.classList.toggle('hidden');
+    });
+
+    soundToggleBtn?.addEventListener('click', () => {
+      audioEnabled = !audioEnabled;
+      soundToggleBtn.textContent = audioEnabled ? '🔊' : '🔇';
+      soundToggleBtn.classList.toggle('bg-red-900', !audioEnabled);
+    });
+
+    showHintBtn?.addEventListener('click', () => {
+      playSound('click');
+      statusMessage.innerHTML = `💡 <strong>Hint:</strong> Try taking the middle item across first to keep conflicting items separated on opposite banks!`;
+    });
+
+    // Initial Render on Load
+    window.addEventListener('DOMContentLoaded', () => {
+      render();
+    });
+
+  </script>
+</body>
+</html>
